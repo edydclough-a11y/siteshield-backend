@@ -1,6 +1,6 @@
-# FastAPI Starter
+# SiteShield Omni-Ingest Engine
 
-A small Python API service built with FastAPI, with automatic interactive API documentation and a health endpoint.
+A Python API for turning construction-site notes and media into structured daily logs, snags, and variations saved to Supabase.
 
 ## Run & Operate
 
@@ -15,8 +15,9 @@ A small Python API service built with FastAPI, with automatic interactive API do
 ## Stack
 
 - pnpm workspaces, Node.js 24, Python 3.11
-- Main API: FastAPI + Uvicorn (`artifacts/fastapi-app`)
+- Main API: FastAPI + Uvicorn + Google Gen AI (`artifacts/fastapi-app`)
 - Existing shared API: Express 5 (`artifacts/api-server`)
+- Site-record storage: Supabase Python client using caller JWTs and RLS
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
@@ -24,17 +25,19 @@ A small Python API service built with FastAPI, with automatic interactive API do
 
 ## Where things live
 
-- `artifacts/fastapi-app/app/main.py` — FastAPI application and routes
-- `artifacts/fastapi-app/README.md` — Python setup and endpoint guide
+- `artifacts/fastapi-app/app/main.py` — FastAPI application and health routes
+- `artifacts/fastapi-app/app/routers/ingest.py` — authenticated multipart ingestion endpoint
+- `artifacts/fastapi-app/README.md` — setup, authentication, and endpoint guide
 - `artifacts/api-server` — existing Express API service
 
 ## Architecture decisions
 
 - FastAPI is a separate service so the existing Express API and generated TypeScript clients remain unchanged.
+- Supabase writes use the caller's verified JWT and anon key; database row-level security must restrict records to authorized projects.
 
 ## Product
 
-The FastAPI service exposes basic service information, a health check, and interactive API references at `/docs` and `/redoc`.
+The FastAPI service analyzes site notes and supported media with Gemini, then saves classified daily logs, snags, and variations to Supabase. Interactive API references are at `/docs` and `/redoc`.
 
 ## User preferences
 
@@ -43,6 +46,8 @@ None recorded.
 ## Gotchas
 
 - The FastAPI app has its own workflow and listens on port 8000.
+- Configure `GEMINI_API_KEY`, `SUPABASE_URL`, and `SUPABASE_ANON_KEY` through Replit Secrets before using `POST /ingest`.
+- Audio/video uploads require ffmpeg/ffprobe and are split into short segments before Gemini analysis.
 
 ## Pointers
 

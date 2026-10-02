@@ -39,17 +39,30 @@ def require_authenticated_user(
     try:
         client = create_client(supabase_url, anon_key)
         auth_response = client.auth.get_user(credentials.credentials)
-        user = auth_response.user
-        if user is None:
-            raise ValueError("No authenticated user was returned.")
-        client.postgrest.auth(credentials.credentials)
-        return AuthenticatedSupabase(user_id=user.id, client=client)
-    except Exception:
+    except Exception as error:
+        status = getattr(error, "status", None) or getattr(error, "status_code", None)
+        if status in {400, 401, 403}:
+            raise HTTPException(
+                status_code=401,
+                detail="The Supabase access token is invalid or expired.",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from None
+        logger.exception("Supabase access-token verification failed.")
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase authentication is temporarily unavailable.",
+        ) from None
+
+    user = auth_response.user
+    if user is None:
         raise HTTPException(
             status_code=401,
             detail="The Supabase access token is invalid or expired.",
             headers={"WWW-Authenticate": "Bearer"},
-        ) from None
+        )
+
+    client.postgrest.auth(credentials.credentials)
+    return AuthenticatedSupabase(user_id=user.id, client=client)
 
 
 def save_site_record(
