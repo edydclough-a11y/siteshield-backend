@@ -11,12 +11,18 @@ Start the **FastAPI App** workflow. It serves the API on port `8000`.
 Add these values through Replit Secrets:
 
 - `GEMINI_API_KEY` — Google Gemini API key. The service uses `gemini-2.5-flash` by default; optionally set `GEMINI_MODEL` to another available model.
-- `SUPABASE_URL` — your Supabase project URL.
+- `SUPABASE_URL` — the root project URL, usually `https://<project-ref>.supabase.co`; do not append `/rest/v1/`.
 - `SUPABASE_ANON_KEY` — the project's anon/publishable key.
 
 Do not use a Supabase service-role key. The API requires a caller's Supabase access token and makes database requests with that user's token, so Supabase row-level security remains active.
 
-The Supabase project must have the `daily_logs`, `snags`, and `variations` tables and policies that let authenticated users create records only for projects they can access. The API does not accept a client-supplied `user_id`; it takes the user ID from the verified Supabase token.
+The Supabase project must have the `daily_logs`, `snags`, and `variations` tables with these insert columns:
+
+- `daily_logs`: `project_id`, `user_id`, `weather_summary`, `headcount`, `raw_transcript`, `formatted_english_summary`
+- `snags`: `project_id`, `plot_or_location`, `trade_assigned`, `description`, `severity`, `status`
+- `variations`: `project_id`, `title`, `description`, `delay_hours`, `cost_impact_flag`, `estimated_cost`, `status`
+
+Add RLS policies that let authenticated users insert only into projects they can access. The API does not accept a client-supplied `user_id`; for daily logs it takes the user ID from the verified Supabase token. Any additional non-null columns in your schema need defaults or corresponding values in the insert code.
 
 ## Run locally
 

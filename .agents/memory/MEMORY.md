@@ -1,0 +1,1 @@
+- [Supabase HTML auth failures](supabase-html-auth-failures.md) — HTML/JSON parse errors during Supabase auth can indicate a REST-specific base URL instead of the project root.

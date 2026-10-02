@@ -46,7 +46,7 @@ None recorded.
 ## Gotchas
 
 - The FastAPI app has its own workflow and listens on port 8000.
-- Configure `GEMINI_API_KEY`, `SUPABASE_URL`, and `SUPABASE_ANON_KEY` through Replit Secrets before using `POST /ingest`.
+- Configure `GEMINI_API_KEY`, `SUPABASE_URL` (the project root URL, without `/rest/v1/`), and `SUPABASE_ANON_KEY` through Replit Secrets before using `POST /ingest`.
 - Audio/video uploads require ffmpeg/ffprobe and are split into short segments before Gemini analysis.
 
 ## Pointers
