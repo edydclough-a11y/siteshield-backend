@@ -1,10 +1,11 @@
-# [Project name]
+# FastAPI Starter
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A small Python API service built with FastAPI, with automatic interactive API documentation and a health endpoint.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the existing API server (port 8080)
+- `pnpm --filter @workspace/fastapi-app run dev` — run the FastAPI service (port 8000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -13,8 +14,9 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
+- pnpm workspaces, Node.js 24, Python 3.11
+- Main API: FastAPI + Uvicorn (`artifacts/fastapi-app`)
+- Existing shared API: Express 5 (`artifacts/api-server`)
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
@@ -22,23 +24,25 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/fastapi-app/app/main.py` — FastAPI application and routes
+- `artifacts/fastapi-app/README.md` — Python setup and endpoint guide
+- `artifacts/api-server` — existing Express API service
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- FastAPI is a separate service so the existing Express API and generated TypeScript clients remain unchanged.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+The FastAPI service exposes basic service information, a health check, and interactive API references at `/docs` and `/redoc`.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+None recorded.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The FastAPI app has its own workflow and listens on port 8000.
 
 ## Pointers
 

@@ -1,0 +1,8 @@
+{
+  "name": "@workspace/fastapi-app",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "python3 -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload"
+  }
+}
