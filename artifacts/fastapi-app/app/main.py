@@ -1,17 +1,21 @@
 from fastapi import FastAPI
 
+from app.routers.ingest import router as ingest_router
+
 app = FastAPI(
-    title="FastAPI Starter",
-    description="A small, ready-to-extend FastAPI service.",
-    version="0.1.0",
+    title="SiteShield Omni-Ingest Engine",
+    description="Classifies construction-site notes and media into daily logs, snags, and variations.",
+    version="0.2.0",
 )
+
+app.include_router(ingest_router)
 
 
 @app.get("/", tags=["General"])
 async def read_root() -> dict[str, str]:
     """Return basic service information."""
     return {
-        "name": "FastAPI Starter",
+        "name": "SiteShield Omni-Ingest Engine",
         "status": "running",
         "docs": "/docs",
     }
