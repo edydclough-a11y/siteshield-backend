@@ -1,0 +1,106 @@
+import os
+import json
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import google.generativeai as genai
+from supabase import create_client, Client
+
+app = FastAPI(title="SiteShield Omni-Ingest Engine")
+
+# Environment Variables
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://YOUR_PROJECT_REF.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "YOUR_SUPABASE_ANON_OR_SERVICE_ROLE_KEY")
+
+genai.configure(api_key=GEMINI_API_KEY)
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+SYSTEM_PROMPT = """
+You are an expert UK Construction Site Manager, Contracts Administrator, and Quantity Surveyor AI.
+Analyze the incoming voice, photo, video, or ambient transcript.
+
+Tasks:
+1. Translate and format all commentary into professional, contractually clear UK English site records.
+2. Classify into one of three categories:
+   - 'daily_log': Daily progress, weather conditions, headcount/subcontractors on site, general daywork.
+   - 'snag': Defective work, damages, incomplete items, plastering/tiling/decorating defects.
+   - 'variation': Scope changes, client alterations, delays caused by third parties, unexpected MVHR/drylining cutouts, cost impacts.
+3. Extract key metrics: headcount (integer), severity ('Low','Medium','High','Critical'), delay_hours (float), cost_impact_flag (boolean), estimated_cost (float).
+
+OUTPUT FORMAT: Strict JSON object with keys:
+{
+  "category": "daily_log" | "snag" | "variation",
+  "summary_english": "Detailed professional summary",
+  "weather_summary": "Sunny / Rain / Cold",
+  "headcount": 0,
+  "trade_assigned": "Drylining / Plumbing / Electrical / Joinery",
+  "severity": "Low" | "Medium" | "High" | "Critical",
+  "delay_hours": 0.0,
+  "cost_impact_flag": false,
+  "estimated_cost": 0.0
+}
+"""
+
+@app.post("/ingest")
+async def ingest_site_data(
+    user_id: str = Form(...),
+    project_id: str = Form(...),
+    raw_text: str = Form(None),
+    file: UploadFile = File(None)
+):
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    contents = [SYSTEM_PROMPT]
+    
+    if raw_text:
+        contents.append(f"Raw Input / Ambient Transcript: {raw_text}")
+        
+    if file:
+        file_bytes = await file.read()
+        contents.append({
+            "mime_type": file.content_type,
+            "data": file_bytes
+        })
+
+    try:
+        response = model.generate_content(
+            contents,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        parsed = json.loads(response.text)
+        category = parsed.get("category", "daily_log")
+
+        # Automatically store into Supabase
+        if category == "daily_log":
+            supabase.table("daily_logs").insert({
+                "project_id": project_id,
+                "user_id": user_id,
+                "weather_summary": parsed.get("weather_summary", "Overcast"),
+                "headcount": parsed.get("headcount", 0),
+                "raw_transcript": raw_text or "Media upload",
+                "formatted_english_summary": parsed.get("summary_english")
+            }).execute()
+
+        elif category == "snag":
+            supabase.table("snags").insert({
+                "project_id": project_id,
+                "plot_or_location": parsed.get("trade_assigned", "Site Wide"),
+                "trade_assigned": parsed.get("trade_assigned", "General"),
+                "description": parsed.get("summary_english"),
+                "severity": parsed.get("severity", "Medium"),
+                "status": "Open"
+            }).execute()
+
+        elif category == "variation":
+            supabase.table("variations").insert({
+                "project_id": project_id,
+                "title": parsed.get("summary_english", "")[:60] + "...",
+                "description": parsed.get("summary_english"),
+                "delay_hours": parsed.get("delay_hours", 0.0),
+                "cost_impact_flag": parsed.get("cost_impact_flag", False),
+                "estimated_cost": parsed.get("estimated_cost", 0.0),
+                "status": "Draft"
+            }).execute()
+
+        return {"status": "success", "category": category, "result": parsed}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
