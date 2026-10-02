@@ -1,0 +1,150 @@
+from fastapi import FastAPI, HTTPException, Form, UploadFile, File
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+import uuid
+import os
+import shutil
+import re
+
+app = FastAPI(title="SiteShield Ingest API", description="FastAPI backend for site note ingestion with AI classification")
+
+# In-memory storage for ingested data
+ingested_data: List[dict] = []
+
+# Directory for uploaded files
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+# --- Simple keyword-based site note classification ---
+CATEGORY_RULES = {
+    "safety": [
+        r"\bsafety\b", r"\bdanger\b", r"\baccident\b",
+        r"\bppe\b", r"\bhelmet\b", r"\bcaution\b", r"\bwarning\b",
+        r"\bfall\b", r"\bscaffold\b", r"\bsecure\b", r"\bhazard\b",
+    ],
+    "defect": [
+        r"\bcrack\b", r"\bdamage\b", r"\bleak\b", r"\bdefect\b",
+        r"\bissue\b", r"\bproblem\b", r"\bfault\b", r"\bbroken\b",
+        r"\brepair\b", r"\bfix\b", r"\bcorrosion\b", r"\brust\b",
+    ],
+    "quality": [
+        r"\bquality\b", r"\binspection\b", r"\bapprove\b", r"\breject\b",
+        r"\bsmudge\b", r"\bfinish\b", r"\bstandard\b", r"\bcomplian\b",
+    ],
+    "progress": [
+        r"\bcomplet\b", r"\bprogress\b", r"\bstarted\b", r"\bbegin\b",
+        r"\binstall\b", r"\bconstruct\b", r"\bbrickwork\b", r"\bpour\b",
+        r"\bcuring\b", r"\bphase\b", r"\bstage\b",
+    ],
+    "environmental": [
+        r"\bweather\b", r"\brain\b", r"\bwind\b", r"\bflood\b",
+        r"\bwater\b", r"\bdrainage\b", r"\bmold\b", r"\bdamp\b",
+    ],
+}
+
+
+def classify_note(text: str) -> str:
+    if not text:
+        return "general"
+    lower = text.lower()
+    scores = {}
+    for category, patterns in CATEGORY_RULES.items():
+        score = sum(1 for pattern in patterns if re.search(pattern, lower))
+        if score > 0:
+            scores[category] = score
+    if not scores:
+        return "general"
+    return max(scores, key=scores.get)
+
+
+class IngestResponse(BaseModel):
+    id: str
+    user_id: str
+    project_id: str
+    title: Optional[str]
+    content: Optional[str]
+    category: str
+    source: Optional[str]
+    file_name: Optional[str]
+    file_path: Optional[str]
+    metadata: Optional[dict]
+    timestamp: str
+    status: str
+
+
+@app.get("/")
+def root():
+    return {
+        "name": "SiteShield Ingest API",
+        "endpoints": {
+            "GET /": "API info",
+            "POST /ingest": "Ingest site notes via form-data (user_id, project_id, raw_text, optional file)",
+            "GET /ingest": "List all ingested data",
+            "GET /ingest/{item_id}": "Get a specific ingested item",
+            "GET /docs": "Interactive API docs (Swagger UI)",
+        },
+    }
+
+
+@app.post("/ingest", response_model=IngestResponse)
+async def ingest(
+    user_id: str = Form(...),
+    project_id: str = Form(...),
+    raw_text: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
+    source: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+):
+    category = classify_note(raw_text or "")
+
+    file_name = None
+    file_path = None
+
+    if file:
+        file_name = file.filename
+        file_ext = os.path.splitext(file_name)[1]
+        saved_name = f"{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, saved_name)
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+    record = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "project_id": project_id,
+        "title": title,
+        "content": raw_text,
+        "category": category,
+        "source": source,
+        "file_name": file_name,
+        "file_path": file_path,
+        "metadata": {
+            "user_id": user_id,
+            "project_id": project_id,
+            "classified_by": "keyword-rule-engine",
+        },
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "status": "ingested",
+    }
+    ingested_data.append(record)
+    return record
+
+
+@app.get("/ingest", response_model=List[IngestResponse])
+def list_ingested():
+    return ingested_data
+
+
+@app.get("/ingest/{item_id}", response_model=IngestResponse)
+def get_ingested(item_id: str):
+    for record in ingested_data:
+        if record["id"] == item_id:
+            return record
+    raise HTTPException(status_code=404, detail="Item not found")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
