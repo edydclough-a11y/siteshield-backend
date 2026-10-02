@@ -218,6 +218,8 @@ importers:
         specifier: 3.1.0
         version: 3.1.0
 
+  artifacts/fastapi-app: {}
+
   artifacts/mockup-sandbox:
     devDependencies:
       '@hookform/resolvers':
