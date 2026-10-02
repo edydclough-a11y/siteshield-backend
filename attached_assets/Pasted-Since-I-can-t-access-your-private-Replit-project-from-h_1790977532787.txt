@@ -1,0 +1,125 @@
+Since I can't access your private Replit project from here, here's the simplest possible fix — 3 steps in your Replit editor:
+
+## Step 1: Replace `main.py`
+
+Open `main.py` in Replit, delete everything, and paste this:
+
+```python
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+import uuid, os, shutil, re
+
+app = FastAPI(title="SiteShield Ingest API")
+ingested_data = []
+os.makedirs("uploads", exist_ok=True)
+
+CATEGORY_RULES = {
+    "safety": [r"\bsafety\b", r"\bhazard\b", r"\bscaffold\b", r"\bfall\b", r"\bcaution\b"],
+    "defect": [r"\bcrack\b", r"\bdamage\b", r"\bdefect\b", r"\bbroken\b", r"\brepair\b"],
+    "quality": [r"\bsmudge\b", r"\bfinish\b", r"\binspection\b", r"\bquality\b"],
+    "progress": [r"\bcomplet\b", r"\bbrickwork\b", r"\binstall\b", r"\bconstruct\b"],
+    "environmental": [r"\brain\b", r"\bwater\b", r"\bdrainage\b", r"\bweather\b"],
+}
+
+def classify_note(text):
+    if not text: return "general"
+    lower = text.lower()
+    scores = {c: sum(1 for p in pats if re.search(p, lower)) for c, pats in CATEGORY_RULES.items()}
+    scores = {k: v for k, v in scores.items() if v > 0}
+    return max(scores, key=scores.get) if scores else "general"
+
+class IngestResponse(BaseModel):
+    id: str; user_id: str; project_id: str
+    title: Optional[str]; content: Optional[str]; category: str
+    source: Optional[str]; file_name: Optional[str]; file_path: Optional[str]
+    metadata: Optional[dict]; timestamp: str; status: str
+
+@app.post("/ingest", response_model=IngestResponse)
+async def ingest(
+    user_id: str = Form(...),
+    project_id: str = Form(...),
+    raw_text: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
+    source: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+):
+    file_name = file_path = None
+    if file:
+        file_name = file.filename
+        file_path = f"uploads/{uuid.uuid4()}{os.path.splitext(file_name)[1]}"
+        with open(file_path, "wb") as f: shutil.copyfileobj(file.file, f)
+    record = {
+        "id": str(uuid.uuid4()), "user_id": user_id, "project_id": project_id,
+        "title": title, "content": raw_text, "category": classify_note(raw_text),
+        "source": source, "file_name": file_name, "file_path": file_path,
+        "metadata": {"user_id": user_id, "project_id": project_id},
+        "timestamp": datetime.utcnow().isoformat() + "Z", "status": "ingested",
+    }
+    ingested_data.append(record)
+    return record
+
+@app.get("/ingest", response_model=List[IngestResponse])
+def list_ingested(): return ingested_data
+
+@app.get("/ingest/{item_id}", response_model=IngestResponse)
+def get_ingested(item_id: str):
+    for r in ingested_data:
+        if r["id"] == item_id: return r
+    raise HTTPException(status_code=404, detail="Not found")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
+```
+
+## Step 2: Replace `requirements.txt`
+
+```
+fastapi
+uvicorn
+python-multipart
+```
+
+## Step 3: Fix `.replit`
+
+Click **"Show hidden files"** at the top of the file panel. Open `.replit` and set it to:
+
+```ini
+run = "python main.py"
+entrypoint = "main.py"
+```
+
+Then click **Run**. If the preview window shows the JSON API info, click **Deploy** and choose **Reserved VM** or **Autoscale** (not Static).
+
+That's it. Once the URL is live, let me know and I'll update your Flutter `ApiService` `baseUrl` to match.
+
+Still a 404 — the project is **private**, so I can't access it from here without your Replit login. The cloud browser has no session, and no local browser is available this session.
+
+You have two options to get this fixed:
+
+## Option A — Make it public (30 seconds, I do the rest)
+
+In your Replit project:
+1. Click the project name at the top-left
+2. Click **Settings** (gear icon)
+3. Scroll to **"Visibility"** and toggle **"Public"** on
+4. Tell me it's public — I'll fix everything directly
+
+## Option B — Give me a Replit API token (I do everything)
+
+1. Go to [replit.com/account](https://replit.com/account)
+2. Scroll to **API Tokens**
+3. Click **"Create token"**
+4. Copy the token and share it with me
+
+I'll use it to update your project files and trigger a deployment via the Replit API.
+
+## Option C — Paste 3 files yourself (2 minutes)
+
+I already shared the three files earlier (`main.py`, `requirements.txt`, `.replit`). Open your Replit editor, replace those three files with the contents I shared, click Run, then Deploy as **Reserved VM**.
+
+Which would you like to do?
+
+Sources
