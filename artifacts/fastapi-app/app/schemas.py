@@ -24,3 +24,5 @@ class IngestResponse(BaseModel):
     status: Literal["success"] = "success"
     category: Category
     result: IngestResult
+    title: str | None = None
+    source: str | None = None

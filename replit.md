@@ -26,7 +26,8 @@ A Python API for turning construction-site notes and media into structured daily
 ## Where things live
 
 - `artifacts/fastapi-app/app/main.py` — FastAPI application and health routes
-- `artifacts/fastapi-app/app/routers/ingest.py` — authenticated multipart ingestion endpoint
+- `artifacts/fastapi-app/app/routers/ingest.py` — authenticated ingestion and project-scoped record routes
+- `artifacts/fastapi-app/app/services/supabase_store.py` — caller-scoped Supabase reads and writes
 - `artifacts/fastapi-app/README.md` — setup, authentication, and endpoint guide
 - `artifacts/api-server` — existing Express API service
 
@@ -37,7 +38,7 @@ A Python API for turning construction-site notes and media into structured daily
 
 ## Product
 
-The FastAPI service analyzes site notes and supported media with Gemini, then saves classified daily logs, snags, and variations to Supabase. Interactive API references are at `/docs` and `/redoc`.
+The FastAPI service analyzes site notes and supported media with Gemini, then saves classified daily logs, snags, and variations to Supabase. Authenticated callers can also list and fetch project records through Supabase RLS. Interactive API references are at `/docs` and `/redoc`.
 
 ## User preferences
 
@@ -47,6 +48,7 @@ None recorded.
 
 - The FastAPI app has its own workflow and listens on port 8000.
 - Configure `GEMINI_API_KEY`, `SUPABASE_URL` (the project root URL, without `/rest/v1/`), and `SUPABASE_ANON_KEY` through Replit Secrets before using `POST /ingest`.
+- Ingestion and read routes use the caller's Supabase token; RLS must scope reads and writes to authorized projects.
 - Audio/video uploads require ffmpeg/ffprobe and are split into short segments before Gemini analysis.
 
 ## Pointers

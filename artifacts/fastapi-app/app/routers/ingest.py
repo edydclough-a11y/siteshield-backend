@@ -1,8 +1,9 @@
 import asyncio
+from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
-from app.schemas import IngestResponse
+from app.schemas import Category, IngestResponse
 from app.services.gemini import analyze_site_input
 from app.services.media import (
     MAX_UPLOAD_BYTES,
@@ -12,6 +13,8 @@ from app.services.media import (
 )
 from app.services.supabase_store import (
     AuthenticatedSupabase,
+    get_site_record,
+    list_site_records,
     require_authenticated_user,
     save_site_record,
 )
@@ -22,14 +25,28 @@ MAX_TEXT_FILE_BYTES = 64_000
 router = APIRouter(prefix="/ingest", tags=["Ingestion"])
 
 
+@router.get("", response_model=list[dict[str, Any]])
+def list_ingested_site_records(
+    project_id: str = Query(..., min_length=1, max_length=128),
+    category: Category | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=100),
+    authenticated: AuthenticatedSupabase = Depends(require_authenticated_user),
+) -> list[dict[str, Any]]:
+    return list_site_records(authenticated, project_id.strip(), category, limit)
+
+
 @router.post("", response_model=IngestResponse)
 async def ingest_site_data(
     project_id: str = Form(..., min_length=1, max_length=128),
     raw_text: str | None = Form(default=None),
     file: UploadFile | None = File(default=None),
+    title: str | None = Form(default=None, max_length=200),
+    source: str | None = Form(default=None, max_length=120),
     authenticated: AuthenticatedSupabase = Depends(require_authenticated_user),
 ) -> IngestResponse:
     site_text = (raw_text or "").strip()
+    record_title = title.strip() if title and title.strip() else None
+    record_source = source.strip() if source and source.strip() else None
     media_chunks = None
     media_mime_type = None
 
@@ -74,5 +91,31 @@ async def ingest_site_data(
         result,
         site_text or None,
         media_mime_type,
+        record_title,
+        record_source,
     )
-    return IngestResponse(status="success", category=result.category, result=result)
+    return IngestResponse(
+        status="success",
+        category=result.category,
+        result=result,
+        title=record_title,
+        source=record_source,
+    )
+
+
+@router.get("/{record_id}", response_model=dict[str, Any])
+def get_ingested_site_record(
+    record_id: str,
+    project_id: str = Query(..., min_length=1, max_length=128),
+    category: Category | None = Query(default=None),
+    authenticated: AuthenticatedSupabase = Depends(require_authenticated_user),
+) -> dict[str, Any]:
+    record = get_site_record(
+        authenticated,
+        project_id.strip(),
+        record_id,
+        category,
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="Site record not found.")
+    return record
